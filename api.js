@@ -1,33 +1,29 @@
 // ============================================================
-// FST - API Communication Layer (Fixed)
+// FST - API Layer (Fixed)
 // ============================================================
 
-const API_URL = CONFIG.API_URL;
-
-// ---- MAIN API FUNCTION ----
-// Google Apps Script only works with GET for reading
-// and GET with parameters for writing too (due to CORS)
 async function apiCall(action, data = {}) {
-  if (!isOnline()) {
-    showToast('⚠️ No internet. Please check your connection.', 'error', 5000);
-    throw new Error('No internet connection');
+
+  // Check internet
+  if (!navigator.onLine) {
+    showToast('No internet connection.', 'error');
+    throw new Error('Offline');
   }
 
-  // Flatten all data into URL parameters
+  // Build URL with parameters
   const params = new URLSearchParams();
   params.append('action', action);
 
-  // Handle nested objects and arrays
   Object.entries(data).forEach(([key, value]) => {
     if (value === null || value === undefined) return;
     if (typeof value === 'object') {
       params.append(key, JSON.stringify(value));
     } else {
-      params.append(key, value);
+      params.append(key, String(value));
     }
   });
 
-  const url = `${API_URL}?${params.toString()}`;
+  const url = CONFIG.API_URL + '?' + params.toString();
 
   try {
     const response = await fetch(url, {
@@ -37,28 +33,30 @@ async function apiCall(action, data = {}) {
 
     const text = await response.text();
 
-    // Try to parse JSON
-    try {
-      return JSON.parse(text);
-    } catch(e) {
-      console.error('Response was not JSON:', text);
-      throw new Error('Invalid response from server');
+    // Find JSON in response (handles any extra HTML wrapping)
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+
+    if (jsonStart === -1 || jsonEnd === -1) {
+      console.error('No JSON found in response:', text.substring(0, 300));
+      throw new Error('Invalid server response');
     }
 
+    const jsonStr = text.substring(jsonStart, jsonEnd + 1);
+    return JSON.parse(jsonStr);
+
   } catch(err) {
-    console.error('API Error:', err);
+    console.error('API Error [' + action + ']:', err.message);
     throw err;
   }
 }
 
-// ---- ALL API FUNCTIONS USE SAME METHOD ----
-
-// AUTH
+// ---- AUTH ----
 async function apiLogin(role, username, password) {
   return apiCall('login', { role, username, password });
 }
 
-// USERS
+// ---- USERS ----
 async function apiCreateUser(userData) {
   return apiCall('createUser', userData);
 }
@@ -81,7 +79,7 @@ async function apiGetEngineersByManager(managerUserID) {
   return apiCall('getEngineersByManager', { managerUserID });
 }
 
-// ATTENDANCE
+// ---- ATTENDANCE ----
 async function apiSubmitAttendance(data) {
   return apiCall('submitAttendance', data);
 }
@@ -92,7 +90,7 @@ async function apiGetAttendanceReport(fromDate, toDate) {
   return apiCall('getAttendanceReport', { fromDate, toDate });
 }
 
-// DEALER PUNCH
+// ---- DEALER PUNCH ----
 async function apiSubmitDealerPunch(data) {
   return apiCall('submitDealerPunch', data);
 }
@@ -103,7 +101,7 @@ async function apiGetDealerPunchReport(fromDate, toDate) {
   return apiCall('getDealerPunchReport', { fromDate, toDate });
 }
 
-// DAILY TASKS
+// ---- DAILY TASKS ----
 async function apiSubmitDailyTasks(data) {
   return apiCall('submitDailyTasks', data);
 }
@@ -120,7 +118,7 @@ async function apiGetEngineerTaskSummary(userID, fromDate, toDate) {
   return apiCall('getEngineerTaskSummary', { userID, fromDate, toDate });
 }
 
-// DAILY EXPENSES
+// ---- DAILY EXPENSES ----
 async function apiSubmitDailyExpenses(data) {
   return apiCall('submitDailyExpenses', data);
 }
@@ -131,7 +129,7 @@ async function apiGetExpensesReport(fromDate, toDate, userID) {
   return apiCall('getExpensesReport', { fromDate, toDate, userID });
 }
 
-// SPECIAL TASKS
+// ---- SPECIAL TASKS ----
 async function apiAssignSpecialTask(data) {
   return apiCall('assignSpecialTask', data);
 }
@@ -151,17 +149,17 @@ async function apiGetAssignedTasksReport(fromDate, toDate) {
   return apiCall('getAssignedTasksReport', { fromDate, toDate });
 }
 
-// FILE UPLOAD
+// ---- FILE UPLOAD ----
 async function apiUploadFile(fileData, fileName, mimeType) {
   return apiCall('uploadFile', { fileData, fileName, mimeType });
 }
 
-// GEOCODE
+// ---- GEOCODE ----
 async function apiReverseGeocode(latitude, longitude) {
   return apiCall('reverseGeocode', { latitude, longitude });
 }
 
-// Legacy support - keep these so nothing breaks
+// ---- Legacy support ----
 async function fetchWithGET(action, data = {}) {
   return apiCall(action, data);
 }
